@@ -40,7 +40,7 @@ allowed_origins = os.environ.get("ALLOWED_ORIGINS", "*").split(",")
 # ---------------------------------------------------------------------------
 limiter = Limiter(key_func=get_remote_address)
 
-app = FastAPI(title="AI Resume Analyzer")
+app = FastAPI(title="Intelligent Resume Analyzer")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
