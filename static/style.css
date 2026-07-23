@@ -1,34 +1,110 @@
 body {
-    font-family: Arial;
+    font-family: system-ui, sans-serif;
+    max-width: 700px;
+    margin: 40px auto;
+    padding: 20px;
     background: #0f172a;
-    color: white;
+    color: #f8fafc;
+}
+
+h1 {
+    text-align: center;
+    color: #22c55e;
+    margin-bottom: 10px;
+}
+
+p {
     text-align: center;
 }
 
-.container {
-    margin-top: 100px;
+#dropzone {
+    border: 2px dashed #64748b;
+    border-radius: 10px;
+    padding: 35px;
+    text-align: center;
+    cursor: pointer;
+    background: #1e293b;
+    transition: 0.3s;
+}
+
+#dropzone:hover {
+    border-color: #22c55e;
+    background: #334155;
+}
+
+#dropzone.drag {
+    border-color: #22c55e;
+    background: #334155;
+}
+
+#fileInfo {
+    margin-top: 10px;
+    color: #cbd5e1;
 }
 
 button {
-    padding: 10px 20px;
-    background: #22c55e;
+    width: 100%;
+    margin-top: 20px;
+    padding: 12px;
     border: none;
+    border-radius: 8px;
+    background: #22c55e;
     color: white;
+    font-size: 16px;
     cursor: pointer;
+    transition: .3s;
 }
 
-#output {
+button:hover:not(:disabled) {
+    background: #16a34a;
+}
+
+button:disabled {
+    background: #64748b;
+    cursor: not-allowed;
+}
+
+#error {
     margin-top: 20px;
+    color: #f87171;
+    font-weight: bold;
+}
+
+#result {
+    display: none;
+    margin-top: 25px;
+    background: #1e293b;
+    padding: 20px;
+    border-radius: 10px;
+}
+
+#result h2 {
+    color: #22c55e;
+    margin-top: 0;
+}
+
+.section-tag {
+    display: inline-block;
+    margin: 5px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 14px;
+}
+
+.present {
+    background: #14532d;
+    color: #bbf7d0;
+}
+
+.missing {
+    background: #7f1d1d;
+    color: #fecaca;
 }
 
 ul {
-    list-style: none;
-    padding: 0;
+    padding-left: 20px;
 }
 
 li {
-    background: #1e293b;
-    margin: 5px;
-    padding: 10px;
-    border-radius: 5px;
+    margin-bottom: 8px;
 }
