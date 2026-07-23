@@ -71,7 +71,8 @@ The current version focuses on deterministic resume analysis without relying on 
 
 ## 📷 Screenshots
 
-(Add screenshots here)
+<img width="1920" height="1020" alt="image" src="https://github.com/user-attachments/assets/b6f610ab-fafa-4100-af71-3755bdc2ac0f" />
+
 
 ## 📄 License
 
