@@ -1,80 +1,117 @@
-import re
-from fastapi import FastAPI, UploadFile
-import pdfplumber
+import os
+import logging
+
+import uvicorn
+from fastapi import FastAPI, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse, JSONResponse
 
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
-app = FastAPI()
+from resume_parser import extract_text, looks_like_resume, analyze_text
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("resume_analyzer")
+
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
+MAX_FILE_SIZE_MB = 5
+MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
+ALLOWED_EXTENSIONS = (".pdf", ".docx")
+
+# In production, set this env var, e.g.:
+#   ALLOWED_ORIGINS="https://yourdomain.com,https://www.yourdomain.com"
+# Falls back to "*" for local development only.
+allowed_origins = os.environ.get("ALLOWED_ORIGINS", "*").split(",")
+
+# ---------------------------------------------------------------------------
+# App setup
+# ---------------------------------------------------------------------------
+limiter = Limiter(key_func=get_remote_address)
+
+app = FastAPI(title="AI Resume Analyzer")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-def analyze_text(text):
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
 
-    score = 0
-    suggestions = []
 
-    text_lower = text.lower()
-
-    # ✅ Skill keywords
-    skills = ["python", "java", "javascript", "react", "sql", "api", "fastapi"]
-    skill_count = sum(1 for skill in skills if skill in text_lower)
-    score += skill_count * 10
-
-    if skill_count < 3:
-        suggestions.append("Add more technical skills (e.g., React, APIs, SQL).")
-
-    # ✅ Projects section
-    if "project" in text_lower:
-        score += 15
-    else:
-        suggestions.append("Include a projects section.")
-
-    # ✅ Experience
-    if "experience" in text_lower or "intern" in text_lower:
-        score += 15
-    else:
-        suggestions.append("Add internship or experience.")
-
-    # ✅ Education
-    if "education" in text_lower:
-        score += 10
-
-    # ✅ Numbers / achievements (AI-like check)
-    if re.search(r"\d+", text):
-        score += 10
-    else:
-        suggestions.append("Add measurable achievements (numbers, impact).")
-
-    # ✅ Length check
-    word_count = len(text.split())
-    if word_count < 200:
-        suggestions.append("Resume is too short. Add more details.")
-    elif word_count > 800:
-        suggestions.append("Resume is too long. Keep it concise.")
-    else:
-        score += 10
-
-    return score, suggestions
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 
 @app.post("/analyze")
-async def analyze_resume(file: UploadFile):
+@limiter.limit("10/minute")
+async def analyze_resume(request: Request, file: UploadFile):
+    filename = (file.filename or "").lower()
 
-    text = ""
+    if not filename.endswith(ALLOWED_EXTENSIONS):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": f"Unsupported file type. Please upload one of: {', '.join(ALLOWED_EXTENSIONS)}"
+            },
+        )
 
-    with pdfplumber.open(file.file) as pdf:
-        for page in pdf.pages:
-            text += page.extract_text() or ""
+    file_bytes = await file.read()
 
-    score, suggestions = analyze_text(text)
+    if len(file_bytes) > MAX_FILE_SIZE_BYTES:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"File too large. Max size is {MAX_FILE_SIZE_MB}MB."},
+        )
 
-    return {
-        "score": min(score, 100),
-        "suggestions": suggestions
-    }
+    try:
+        text = extract_text(filename, file_bytes)
+    except Exception as exc:
+        logger.warning("Extraction failed for %s: %s", filename, exc)
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Could not read this file. It may be corrupted or an unsupported format."},
+        )
+
+    is_resume, reason = looks_like_resume(text)
+    if not is_resume:
+        logger.info("Rejected non-resume upload (%s): %s", filename, reason)
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"This doesn't look like a resume/CV. {reason}"},
+        )
+
+    result = analyze_text(text)
+    logger.info("Analyzed %s — score=%s fresher=%s", filename, result["score"], result["is_fresher"])
+    return result
+
+
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    return templates.TemplateResponse(request=request, name="index.html", context={})
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8080))
+    uvicorn.run("app:app", host="0.0.0.0", port=port)

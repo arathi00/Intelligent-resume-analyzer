@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+python-multipart
+jinja2
+pdfplumber
+python-docx
+slowapi
+
+# --- Optional: OCR support for scanned/photographed PDFs ---
+# Also requires system packages: tesseract-ocr and poppler-utils
+# (Ubuntu/Debian: sudo apt-get install tesseract-ocr poppler-utils)
+pytesseract
+pdf2image
+Pillow
+
+# --- Dev / testing ---
+pytest
